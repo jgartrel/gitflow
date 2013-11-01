@@ -256,7 +256,7 @@ gerrit_query_filter() {
 	rows=$(echo "$res" | awk '/^rowCount:/ {print $2}')
 	[ "$rows" == "1" ] || return 1
 	local filter=$1
-	value=$(echo "$res" | sed -n "s/^\\s*$filter: //p")
+	value=$(echo "$res" | sed -n "s/^[[:space:]]*$filter: //p")
 	[ "$value" ] || return 1
 	echo "$value"
 }
@@ -727,7 +727,7 @@ require_feature_branch() {
 			die "Current branch did NOT initially branch from '$ORIGIN/$DEVELOP_BRANCH'"
 		fi
 	else
-		if [[ "`git rev-list $first_feature_commit^ ^"$ORIGIN/$DEVELOP_BRANCH" 2>&1 | wc -l`" != "0" \
+		if [[ "`git rev-list $first_feature_commit^ ^"$ORIGIN/$DEVELOP_BRANCH" 2>&1 | wc -l`" -ne 0 \
 		   && "`git rev-parse $first_feature_commit^`" != "`git rev-parse $ORIGIN/$DEVELOP_BRANCH^`" ]]; then
 			die "Current branch did NOT initially branch from '$ORIGIN/$DEVELOP_BRANCH'"
 		fi
@@ -735,13 +735,14 @@ require_feature_branch() {
 }
 
 git_change_id() {
-	local change_id=$(commit_message "$1" | sed -n 's/^Change-Id:\s\+\(I[a-fA-F0-9]\+\)\s*$/\1/p' | tr "A-F" "a-f")
+	local change_id=$(commit_message "$1" | sed -n 's/^Change-Id:[[:space:]][[:space:]]*\(I[a-fA-F0-9][a-fA-F0-9]*\)[[:space:]]*$/\1/p' | tr "A-F" "a-f")
 	[ "$change_id" ] || return 1
 	echo "$change_id"
 }
 
 git_derived_change_id() {
-	local change_id=$(git_change_id "$2") || return 1
+	local change_id=$(git_change_id "$2")
+	[ "$change_id" ] || return 1
 	local tr=
 	case "$1" in
 		review)  tr=1032547698badcfe ;; # xor 11..
@@ -816,7 +817,7 @@ generate_squash_message() {
 	local template=$(git config commit.template)
 	if [ -f "$template" ]; then
 		echo
-		cat "$template" | sed '/^\s*#/d;/^\s*$/d'
+		cat "$template" | sed '/^[[:space:]]*#/d;/^[[:space:]]*$/d'
 	fi
 }
 
@@ -826,7 +827,8 @@ get_feature_commit_message() {
 	[ "$first_feature_commit" ] || die "Aborting: $BRANCH contains no commits on top of $ORIGIN/$DEVELOP_BRANCH."
 
 	# The Gerrit Change-Id for the whole feature is _derived_ from the first commit
-	local first_change_id=$(git_change_id "$first_feature_commit") || fail "First commit in feature branch doesn't contain a Change-Id"
+	local first_change_id=$(git_change_id "$first_feature_commit")
+        [ "$first_change_id" ] || fail "First commit in feature branch doesn't contain a Change-Id" 
 	local feature_change_id=$(git_derived_change_id review "$first_feature_commit")
 	local message_change_id=$(git_derived_change_id message "$first_feature_commit")
 
@@ -847,7 +849,8 @@ edit_feature_commit_message() {
 	[ "$first_feature_commit" ] || die "Aborting: $BRANCH contains no commits on top of $DEVELOP_BRANCH."
 
 	# The Gerrit Change-Id for the whole feature is _derived_ from the first commit
-	local first_change_id=$(git_change_id "$first_feature_commit") || fail "First commit in feature branch doesn't contain a Change-Id"
+	local first_change_id=$(git_change_id "$first_feature_commit")
+        [ "$first_change_id" ] || fail "First commit in feature branch doesn't contain a Change-Id"
 	local feature_change_id=$(git_derived_change_id review "$first_feature_commit")
 	local message_change_id=$(git_derived_change_id message "$first_feature_commit")
 
